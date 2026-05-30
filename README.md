@@ -71,13 +71,8 @@ The model predicts crops using:
 
 # 📷 Dashboard Preview
 
-Add screenshots of your dashboard here.
+<img width="614" height="577" alt="image" src="https://github.com/user-attachments/assets/fef941eb-c3cf-4045-bdfa-8d796a877ea7" />
 
-Example:
-
-```md
-![Dashboard Screenshot](images/dashboard.png)
-```
 
 ---
 
