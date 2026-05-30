@@ -15,7 +15,7 @@ https://agricultureproject-dashboard26.streamlit.app/
 ## 📂 GitHub Repository
 
 🔗 Repository:  
-https://github.com/Skyclooud/agrivision-crop-prediction-dashboard
+https://github.com/Skyclooud/Agriculture_Project
 
 ---
 
@@ -81,13 +81,13 @@ The model predicts crops using:
 Clone the repository:
 
 ```bash
-git clone https://github.com/Skyclooud/agrivision-crop-prediction-dashboard.git
+git clone https://github.com/Skyclooud/Agriculture_Project.git
 ```
 
 Move into the project folder:
 
 ```bash
-cd agrivision-crop-prediction-dashboard
+cd Agriculture_Project
 ```
 
 Install dependencies:
