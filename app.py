@@ -369,7 +369,7 @@ def performance_snapshot_vertical(filtered_df, df):
     overall_rainfall = df["rainfall"].mean()
     overall_humidity = df["humidity"].mean()
 
-    filtered_temp = filtered_df["temperature"].mean()G
+    filtered_temp = filtered_df["temperature"].mean()
     filtered_rainfall = filtered_df["rainfall"].mean()
     filtered_humidity = filtered_df["humidity"].mean()
 
