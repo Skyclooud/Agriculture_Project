@@ -178,7 +178,7 @@ div.block-container {
     background: rgba(251, 113, 133, 0.12);
     border: 1px solid rgba(251, 113, 133, 0.18);
 }
-
+G
 .info-tile {
     background: linear-gradient(180deg, var(--panel), var(--panel-2));
     border: 1px solid var(--border);
@@ -369,7 +369,7 @@ def performance_snapshot_vertical(filtered_df, df):
     overall_rainfall = df["rainfall"].mean()
     overall_humidity = df["humidity"].mean()
 
-    filtered_temp = filtered_df["temperature"].mean()
+    filtered_temp = filtered_df["temperature"].mean()G
     filtered_rainfall = filtered_df["rainfall"].mean()
     filtered_humidity = filtered_df["humidity"].mean()
 
