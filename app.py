@@ -1,10 +1,33 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import pickle
+import numpy as np
 
 st.set_page_config(page_title="AgriVision Dashboard", layout="wide")
 px.defaults.template = "plotly_dark"
+
+COLOR_SEQUENCE = [
+    "#00E5FF", "#FFB703", "#8B5CF6", "#22C55E",
+    "#FF4D6D", "#F97316", "#06B6D4", "#A3E635",
+    "#F43F5E", "#14B8A6"
+]
+
+CHART_THEME = {
+    "Histogram": "#38BDF8",
+    "Line Chart": "#FACC15",
+    "Box Plot": "#22C55E",
+    "Bar Chart": "#F97316",
+    "Area Chart": "#EC4899",
+    "Pie Chart": "#8B5CF6"
+}
+
+CATEGORY_COLORS = [
+    "#00E5FF", "#FF6B6B", "#FFD166", "#06D6A0",
+    "#118AB2", "#EF476F", "#8338EC", "#3A86FF",
+    "#FB5607", "#FFBE0B", "#80ED99", "#C77DFF"
+]
 
 st.markdown("""
 <style>
@@ -29,7 +52,6 @@ st.markdown("""
     --menu-text: #eef4ff;
 }
 
-/* Force a readable light-mode palette when Streamlit/app switches light */
 @media (prefers-color-scheme: light) {
     :root {
         --bg: #eef4fb;
@@ -178,7 +200,7 @@ div.block-container {
     background: rgba(251, 113, 133, 0.12);
     border: 1px solid rgba(251, 113, 133, 0.18);
 }
-G
+
 .info-tile {
     background: linear-gradient(180deg, var(--panel), var(--panel-2));
     border: 1px solid var(--border);
@@ -222,7 +244,6 @@ div[data-testid="stRadio"] label {
     color: var(--text) !important;
 }
 
-/* Selectbox and input main area */
 div[data-baseweb="select"] > div,
 div[data-baseweb="input"] > div {
     background: var(--input-bg) !important;
@@ -231,25 +252,21 @@ div[data-baseweb="input"] > div {
     color: var(--input-text) !important;
 }
 
-/* Selectbox visible text */
 div[data-baseweb="select"] span,
 div[data-baseweb="select"] div {
     color: var(--input-text) !important;
 }
 
-/* Input text */
 input, textarea {
     color: var(--input-text) !important;
     -webkit-text-fill-color: var(--input-text) !important;
 }
 
-/* Labels above widgets */
 label, .stSelectbox label, .stNumberInput label, .stTextInput label {
     color: var(--soft-text) !important;
     font-weight: 600 !important;
 }
 
-/* Dropdown menu popup */
 div[role="listbox"] {
     background: var(--menu-bg) !important;
     color: var(--menu-text) !important;
@@ -266,7 +283,6 @@ div[role="option"]:hover {
     color: var(--menu-text) !important;
 }
 
-/* Selected item / placeholder / icons inside selectboxes */
 [data-baseweb="select"] svg,
 [data-baseweb="input"] svg {
     fill: var(--input-text) !important;
@@ -279,7 +295,6 @@ div[role="option"]:hover {
     opacity: 1 !important;
 }
 
-/* Metrics, text, dataframe */
 div[data-testid="stMetricLabel"] *,
 div[data-testid="stMetricValue"] * {
     color: var(--text) !important;
@@ -292,12 +307,10 @@ div[data-testid="stDataFrame"] {
     margin-top: 0.4rem;
 }
 
-/* Plotly chart container */
 .js-plotly-plot, .plotly, .plot-container {
     color: var(--text) !important;
 }
 
-/* Buttons */
 .stButton > button,
 .stDownloadButton > button,
 div[data-testid="stFormSubmitButton"] button {
@@ -309,7 +322,6 @@ div[data-testid="stFormSubmitButton"] button {
     min-height: 42px;
 }
 
-/* Footer */
 .fixed-footer {
     position: fixed;
     bottom: 0;
@@ -332,15 +344,37 @@ def style_plotly(fig, title):
     fig.update_layout(
         template="plotly_dark",
         title=title,
+        colorway=CATEGORY_COLORS,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=20, r=20, t=55, b=20),
         title_font=dict(size=20, color="#f8fbff"),
         font=dict(color="#d9e6fb"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(0,0,0,0)"
+        ),
+        hoverlabel=dict(
+            bgcolor="#0f172a",
+            font_color="#ffffff"
+        )
     )
-    fig.update_xaxes(showgrid=False, zeroline=False)
-    fig.update_yaxes(gridcolor="rgba(148,163,184,0.12)", zeroline=False)
+    fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+        showline=True,
+        linecolor="rgba(255,255,255,0.20)"
+    )
+    fig.update_yaxes(
+        gridcolor="rgba(148,163,184,0.18)",
+        zeroline=False,
+        showline=True,
+        linecolor="rgba(255,255,255,0.20)"
+    )
     return fig
 
 
@@ -379,6 +413,34 @@ def performance_snapshot_vertical(filtered_df, df):
     metric_card("Avg Humidity", f"{filtered_humidity:.2f}", delta_html(filtered_humidity, overall_humidity))
 
 
+def make_histogram_df(series, bins=18):
+    clean = series.dropna()
+    counts, edges = np.histogram(clean, bins=bins)
+
+    hist_df = pd.DataFrame({
+        "bin_left": edges[:-1],
+        "bin_right": edges[1:],
+        "count": counts
+    })
+
+    hist_df["bin_center"] = (hist_df["bin_left"] + hist_df["bin_right"]) / 2
+    hist_df["bin_label"] = hist_df.apply(
+        lambda r: f"{r['bin_left']:.1f} - {r['bin_right']:.1f}",
+        axis=1
+    )
+    return hist_df
+
+
+def reset_prediction_fields():
+    st.session_state["N_input"] = 0.0
+    st.session_state["P_input"] = 0.0
+    st.session_state["K_input"] = 0.0
+    st.session_state["temperature_input"] = 0.0
+    st.session_state["humidity_input"] = 0.0
+    st.session_state["ph_input"] = 0.0
+    st.session_state["rainfall_input"] = 0.0
+
+
 df = pd.read_csv("Data/cleared_crop_data.csv")
 
 with open("crop_model.pkl", "rb") as f:
@@ -395,6 +457,14 @@ if "data_label" not in st.session_state:
 
 if "chart_label" not in st.session_state:
     st.session_state.chart_label = "All"
+
+for key in [
+    "N_input", "P_input", "K_input",
+    "temperature_input", "humidity_input",
+    "ph_input", "rainfall_input"
+]:
+    if key not in st.session_state:
+        st.session_state[key] = 0.0
 
 label_options = ["All"] + sorted(df["label"].unique().tolist())
 
@@ -519,7 +589,7 @@ elif section == "Charts":
         )
 
     is_numeric = pd.api.types.is_numeric_dtype(chart_df[selected_column])
-    chart_options = ["Histogram", "Line Chart", "Box Plot", "Bar Chart", "Area Chart"] if is_numeric else ["Bar Chart", "Pie Chart"]
+    chart_options = ["Histogram", "Line Chart", "Box Plot", "Bar Chart", "Area Chart", "Pie Chart"] if is_numeric else ["Bar Chart", "Pie Chart"]
 
     with chart_filter3:
         selected_chart = st.selectbox(
@@ -568,27 +638,179 @@ elif section == "Charts":
 
         if is_numeric:
             if selected_chart == "Histogram":
-                fig = px.histogram(chart_df, x=selected_column, nbins=25)
-                st.plotly_chart(style_plotly(fig, f"Histogram — {selected_column} ({chart_label})"), use_container_width=True)
+                hist_df = make_histogram_df(chart_df[selected_column], bins=18)
+
+                fig = px.bar(
+                    hist_df,
+                    x="bin_label",
+                    y="count",
+                    color="bin_center",
+                    color_continuous_scale="Turbo",
+                    text="count"
+                )
+                fig.update_traces(
+                    marker_line_color="#FFFFFF",
+                    marker_line_width=1.2,
+                    textposition="outside"
+                )
+                fig.update_xaxes(
+                    title=selected_column,
+                    tickangle=-35,
+                    categoryorder="array",
+                    categoryarray=hist_df["bin_label"]
+                )
+                fig.update_yaxes(title="Count")
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Histogram — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
             elif selected_chart == "Line Chart":
                 line_df = chart_df.reset_index().rename(columns={"index": "row_id"})
-                fig = px.line(line_df, x="row_id", y=selected_column, markers=True)
-                st.plotly_chart(style_plotly(fig, f"Line Chart — {selected_column} ({chart_label})"), use_container_width=True)
+
+                fig = go.Figure()
+
+                fig.add_trace(go.Scatter(
+                    x=line_df["row_id"],
+                    y=line_df[selected_column],
+                    mode="lines",
+                    name="Trend",
+                    line=dict(color="rgba(255,255,255,0.45)", width=3)
+                ))
+
+                fig.add_trace(go.Scatter(
+                    x=line_df["row_id"],
+                    y=line_df[selected_column],
+                    mode="markers",
+                    name=selected_column,
+                    marker=dict(
+                        size=9,
+                        color=line_df[selected_column],
+                        colorscale="Turbo",
+                        showscale=True,
+                        colorbar=dict(title=selected_column),
+                        line=dict(color="#FFFFFF", width=1)
+                    )
+                ))
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Line Chart — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
             elif selected_chart == "Box Plot":
-                fig = px.box(chart_df, y=selected_column, points="outliers")
-                st.plotly_chart(style_plotly(fig, f"Box Plot — {selected_column} ({chart_label})"), use_container_width=True)
+                if chart_label == "All":
+                    fig = px.box(
+                        chart_df,
+                        x="label",
+                        y=selected_column,
+                        color="label",
+                        points="outliers",
+                        color_discrete_sequence=CATEGORY_COLORS
+                    )
+                else:
+                    box_df = chart_df.copy()
+                    box_df["band"] = pd.qcut(
+                        box_df[selected_column],
+                        q=4,
+                        duplicates="drop"
+                    ).astype(str)
+
+                    fig = px.box(
+                        box_df,
+                        x="band",
+                        y=selected_column,
+                        color="band",
+                        points="all",
+                        color_discrete_sequence=CATEGORY_COLORS
+                    )
+                    fig.update_xaxes(title="Value Bands")
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Box Plot — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
             elif selected_chart == "Bar Chart":
                 bar_df = chart_df.reset_index().rename(columns={"index": "row_id"}).head(20)
-                fig = px.bar(bar_df, x="row_id", y=selected_column)
-                st.plotly_chart(style_plotly(fig, f"Bar Chart — first 20 rows of {selected_column} ({chart_label})"), use_container_width=True)
+
+                fig = px.bar(
+                    bar_df,
+                    x="row_id",
+                    y=selected_column,
+                    color=selected_column,
+                    color_continuous_scale="Turbo",
+                    text=selected_column
+                )
+                fig.update_traces(
+                    marker_line_color="#FFFFFF",
+                    marker_line_width=0.8,
+                    texttemplate="%{y:.2f}",
+                    textposition="outside"
+                )
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Bar Chart — first 20 rows of {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
             elif selected_chart == "Area Chart":
                 area_df = chart_df.reset_index().rename(columns={"index": "row_id"})
-                fig = px.area(area_df, x="row_id", y=selected_column)
-                st.plotly_chart(style_plotly(fig, f"Area Chart — {selected_column} ({chart_label})"), use_container_width=True)
+
+                fig = go.Figure()
+
+                fig.add_trace(go.Scatter(
+                    x=area_df["row_id"],
+                    y=area_df[selected_column],
+                    mode="lines",
+                    fill="tozeroy",
+                    name="Area",
+                    line=dict(color="rgba(255,255,255,0.55)", width=2.5),
+                    fillcolor="rgba(255,255,255,0.10)"
+                ))
+
+                fig.add_trace(go.Scatter(
+                    x=area_df["row_id"],
+                    y=area_df[selected_column],
+                    mode="markers",
+                    name=selected_column,
+                    marker=dict(
+                        size=8,
+                        color=area_df[selected_column],
+                        colorscale="Turbo",
+                        showscale=True,
+                        colorbar=dict(title=selected_column),
+                        line=dict(color="#FFFFFF", width=1)
+                    )
+                ))
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Area Chart — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
+
+            elif selected_chart == "Pie Chart":
+                pie_df = make_histogram_df(chart_df[selected_column], bins=8)
+                pie_df = pie_df[pie_df["count"] > 0]
+
+                fig = px.pie(
+                    pie_df,
+                    names="bin_label",
+                    values="count",
+                    hole=0.45,
+                    color="bin_label",
+                    color_discrete_sequence=CATEGORY_COLORS
+                )
+                fig.update_traces(
+                    textinfo="percent+label",
+                    marker=dict(line=dict(color="#0f172a", width=2))
+                )
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Pie Chart — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
             s1, s2, s3 = st.columns(3, gap="medium")
             s1.metric("Minimum", f"{chart_df[selected_column].min():.2f}")
@@ -600,12 +822,43 @@ elif section == "Charts":
             chart_data.columns = [selected_column, "count"]
 
             if selected_chart == "Bar Chart":
-                fig = px.bar(chart_data, x=selected_column, y="count")
-                st.plotly_chart(style_plotly(fig, f"Bar Chart — {selected_column} ({chart_label})"), use_container_width=True)
+                fig = px.bar(
+                    chart_data,
+                    x=selected_column,
+                    y="count",
+                    color=selected_column,
+                    color_discrete_sequence=CATEGORY_COLORS,
+                    text="count"
+                )
+                fig.update_traces(
+                    marker_line_color="#FFFFFF",
+                    marker_line_width=0.8,
+                    textposition="outside"
+                )
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Bar Chart — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
             elif selected_chart == "Pie Chart":
-                fig = px.pie(chart_data, names=selected_column, values="count", hole=0.45)
-                st.plotly_chart(style_plotly(fig, f"Pie Chart — {selected_column} ({chart_label})"), use_container_width=True)
+                fig = px.pie(
+                    chart_data,
+                    names=selected_column,
+                    values="count",
+                    hole=0.45,
+                    color=selected_column,
+                    color_discrete_sequence=CATEGORY_COLORS
+                )
+                fig.update_traces(
+                    textinfo="percent+label",
+                    marker=dict(line=dict(color="#0f172a", width=2))
+                )
+
+                st.plotly_chart(
+                    style_plotly(fig, f"Pie Chart — {selected_column} ({chart_label})"),
+                    use_container_width=True
+                )
 
 elif section == "Prediction":
     st.markdown("""
@@ -619,17 +872,27 @@ elif section == "Prediction":
         f1, f2 = st.columns(2, gap="large")
 
         with f1:
-            N = st.number_input("Nitrogen (N)", min_value=0.0, value=0.0)
-            P = st.number_input("Phosphorus (P)", min_value=0.0, value=0.0)
-            K = st.number_input("Potassium (K)", min_value=0.0, value=0.0)
-            temperature = st.number_input("Temperature", min_value=0.0, value=0.0)
+            N = st.number_input("Nitrogen (N)", min_value=0.0, key="N_input")
+            P = st.number_input("Phosphorus (P)", min_value=0.0, key="P_input")
+            K = st.number_input("Potassium (K)", min_value=0.0, key="K_input")
+            temperature = st.number_input("Temperature", min_value=0.0, key="temperature_input")
 
         with f2:
-            humidity = st.number_input("Humidity", min_value=0.0, value=0.0)
-            ph = st.number_input("pH", min_value=0.0, value=0.0)
-            rainfall = st.number_input("Rainfall", min_value=0.0, value=0.0)
+            humidity = st.number_input("Humidity", min_value=0.0, key="humidity_input")
+            ph = st.number_input("pH", min_value=0.0, key="ph_input")
+            rainfall = st.number_input("Rainfall", min_value=0.0, key="rainfall_input")
 
-        submitted = st.form_submit_button("Predict Crop")
+        b1, b2 = st.columns([1, 1])
+
+        with b1:
+            submitted = st.form_submit_button("Predict Crop", use_container_width=True)
+
+        with b2:
+            reset_clicked = st.form_submit_button(
+                "Reset Values",
+                on_click=reset_prediction_fields,
+                use_container_width=True
+            )
 
     if submitted:
         values = [N, P, K, temperature, humidity, ph, rainfall]
@@ -648,8 +911,7 @@ elif section == "Prediction":
 st.markdown(
     """
     <div class="fixed-footer">
-        Made by Neha Shrivastav
-    </div>
+        Made by Neha S.
     """,
     unsafe_allow_html=True
 )
